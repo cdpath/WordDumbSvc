@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: worddumb-web
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn api.main:app --workers 4 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT --timeout 300
+    envVars:
+      - key: PYTHONPATH
+        value: .
+      - key: PYTHON_VERSION
+        value: 3.11.0
+    healthCheckPath: /
+    autoDeploy: true 

@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WordDumb Web</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding-top: 2rem;
+            padding-bottom: 2rem;
+        }
+        .header {
+            margin-bottom: 2rem;
+        }
+        .drop-zone {
+            border: 2px dashed #ccc;
+            border-radius: 5px;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.3s ease;
+        }
+        .drop-zone:hover {
+            border-color: #0d6efd;
+        }
+        .drop-zone.active {
+            border-color: #0d6efd;
+            background-color: #f8f9fa;
+        }
+        .results {
+            margin-top: 2rem;
+            display: none;
+        }
+        .spinner {
+            margin: 20px auto;
+            display: none;
+        }
+        .file-info {
+            margin-top: 1rem;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header text-center">
+            <h1>WordDumb Web</h1>
+            <p class="lead">Generate Kindle Word Wise and X-Ray files for your ebooks</p>
+        </div>
+
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-body">
+                        <form id="upload-form">
+                            <div class="drop-zone" id="drop-zone">
+                                <p>Drag & drop your ebook file here or click to browse</p>
+                                <input type="file" id="file-input" accept=".epub,.mobi,.azw,.azw3,.kfx" class="d-none">
+                            </div>
+                            
+                            <div class="file-info" id="file-info">
+                                <div class="alert alert-info">
+                                    <strong>Selected file:</strong> <span id="file-name"></span>
+                                </div>
+                            </div>
+
+                            <div class="form-check mt-3">
+                                <input class="form-check-input" type="checkbox" id="create-wordwise" checked>
+                                <label class="form-check-label" for="create-wordwise">
+                                    Generate Word Wise
+                                </label>
+                            </div>
+                            
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="create-xray" checked>
+                                <label class="form-check-label" for="create-xray">
+                                    Generate X-Ray
+                                </label>
+                            </div>
+
+                            <div class="d-grid gap-2 mt-3">
+                                <button type="submit" class="btn btn-primary" id="process-btn">Process Ebook</button>
+                            </div>
+                        </form>
+
+                        <div class="spinner" id="spinner">
+                            <div class="d-flex justify-content-center">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                            </div>
+                            <p class="text-center mt-2">Processing your ebook. This may take a few minutes...</p>
+                        </div>
+
+                        <div class="results" id="results">
+                            <div class="alert alert-success">
+                                <h5 id="result-title">Processing complete!</h5>
+                                <div id="result-messages"></div>
+                            </div>
+                            <div id="download-links"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const dropZone = document.getElementById('drop-zone');
+            const fileInput = document.getElementById('file-input');
+            const fileInfo = document.getElementById('file-info');
+            const fileName = document.getElementById('file-name');
+            const uploadForm = document.getElementById('upload-form');
+            const processBtn = document.getElementById('process-btn');
+            const spinner = document.getElementById('spinner');
+            const results = document.getElementById('results');
+            const resultTitle = document.getElementById('result-title');
+            const resultMessages = document.getElementById('result-messages');
+            const downloadLinks = document.getElementById('download-links');
+            const createWordwise = document.getElementById('create-wordwise');
+            const createXray = document.getElementById('create-xray');
+
+            // Handle file selection via click
+            dropZone.addEventListener('click', function() {
+                fileInput.click();
+            });
+
+            // Handle file selection
+            fileInput.addEventListener('change', function() {
+                handleFileSelection(this.files);
+            });
+
+            // Handle drag and drop
+            dropZone.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                dropZone.classList.add('active');
+            });
+
+            dropZone.addEventListener('dragleave', function() {
+                dropZone.classList.remove('active');
+            });
+
+            dropZone.addEventListener('drop', function(e) {
+                e.preventDefault();
+                dropZone.classList.remove('active');
+                handleFileSelection(e.dataTransfer.files);
+            });
+
+            // Handle form submission
+            uploadForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                if (!fileInput.files || fileInput.files.length === 0) {
+                    alert('Please select a file first.');
+                    return;
+                }
+
+                if (!createWordwise.checked && !createXray.checked) {
+                    alert('Please select at least one process (Word Wise or X-Ray).');
+                    return;
+                }
+
+                processEbook();
+            });
+
+            function handleFileSelection(files) {
+                if (files.length > 0) {
+                    const file = files[0];
+                    fileName.textContent = file.name;
+                    fileInfo.style.display = 'block';
+                }
+            }
+
+            function processEbook() {
+                const formData = new FormData();
+                formData.append('file', fileInput.files[0]);
+                formData.append('create_wordwise', createWordwise.checked);
+                formData.append('create_xray', createXray.checked);
+
+                // Hide form, show spinner
+                uploadForm.style.display = 'none';
+                spinner.style.display = 'block';
+                results.style.display = 'none';
+
+                fetch('/api/process', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(data => {
+                            throw new Error(data.detail || 'Error processing ebook');
+                        });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Hide spinner, show results
+                    spinner.style.display = 'none';
+                    results.style.display = 'block';
+                    
+                    resultTitle.textContent = `Processing complete for "${data.title}"`;
+                    
+                    // Display messages
+                    resultMessages.innerHTML = '';
+                    data.messages.forEach(message => {
+                        const p = document.createElement('p');
+                        p.textContent = message;
+                        p.classList.add('mb-1');
+                        resultMessages.appendChild(p);
+                    });
+                    
+                    // Create download links
+                    downloadLinks.innerHTML = '';
+                    if (data.download_urls.length > 0) {
+                        const heading = document.createElement('h5');
+                        heading.textContent = 'Download Files:';
+                        heading.classList.add('mt-3', 'mb-2');
+                        downloadLinks.appendChild(heading);
+                        
+                        data.download_urls.forEach((url, index) => {
+                            const fileName = data.created_files[index];
+                            const link = document.createElement('a');
+                            link.href = url;
+                            link.textContent = fileName;
+                            link.classList.add('btn', 'btn-outline-primary', 'me-2', 'mb-2');
+                            link.download = fileName;
+                            downloadLinks.appendChild(link);
+                        });
+                    }
+                })
+                .catch(error => {
+                    // Hide spinner, show error
+                    spinner.style.display = 'none';
+                    results.style.display = 'block';
+                    resultTitle.textContent = 'Error';
+                    resultMessages.innerHTML = `<p class="text-danger">${error.message}</p>`;
+                    
+                    // Add a reset button
+                    const resetBtn = document.createElement('button');
+                    resetBtn.textContent = 'Try Again';
+                    resetBtn.classList.add('btn', 'btn-secondary', 'mt-3');
+                    resetBtn.onclick = function() {
+                        results.style.display = 'none';
+                        uploadForm.style.display = 'block';
+                    };
+                    resultMessages.appendChild(resetBtn);
+                });
+            }
+        });
+    </script>
+</body>
+</html> 
