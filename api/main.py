@@ -14,7 +14,7 @@ from pydantic import BaseModel
 sys.path.append(str(Path(__file__).parent.parent))
 from metadata import cli_check_metadata
 from parse_job import ParseJobData, do_job
-from utils import Log
+from api.log_utils import Log  # Use our custom Log implementation
 from database import get_ll_path, get_x_ray_path
 
 app = FastAPI(
